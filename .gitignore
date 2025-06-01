@@ -25,5 +25,5 @@ qsl_cards/
 Thumbs.db
 
 # Test files (optional)
-contacts.csv
+*.csv
 qsl.png

@@ -4,7 +4,7 @@
     "quality": 95
   },
   "template": {
-    "default_image": "/home/joelvazquez/Documents/scripts/Ham-QSL-Generator/QSLTemplate.png"
+    "default_image": "QSLTemplate.png"
   },
   "generation": {
     "batch_by_call": true
@@ -172,3 +172,8 @@
     ]
   ]
 }
+
+
+
+
+

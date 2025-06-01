@@ -3,7 +3,7 @@
 Ham Radio QSL Card Generator with Configuration Support
 Version: 1.2.0
 Last Modified: 2025-05-30
-Author: [Your Name/Call Sign]
+Author: Joel Vazquez, WE0DX
 License: MIT
 
 This script reads ham radio contacts from a CSV file and generates
@@ -37,7 +37,121 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 import shutil
 
+__version__ = "1.2.0"
+__author__ = "Author: Joel Vazquez, WE0DX"
+__email__ = "joelvazquez@we0dx.us"
+__license__ = "MIT"
+
 class QSLCardGenerator:
+    def check_and_save_runtime_config(self, args, config_file):
+        """Check if runtime arguments differ from config and offer to save them"""
+        changes = {}
+        
+        # Check output directory
+        config_output = self.config.get('output', {}).get('default_directory', 'qsl_cards')
+        if args.output_dir and args.output_dir != config_output:
+            changes['output.default_directory'] = args.output_dir
+        
+        # Check template image path
+        config_template = self.config.get('template', {}).get('default_image', None)
+        if args.template_image and args.template_image != config_template:
+            changes['template.default_image'] = args.template_image
+        
+        # Check batch mode preference
+        config_batch = self.config.get('generation', {}).get('batch_by_call', True)
+        if args.batch_by_call != config_batch:
+            changes['generation.batch_by_call'] = args.batch_by_call
+        
+        # Check max contacts per card (if you add this as a command line option)
+        if hasattr(args, 'max_contacts') and args.max_contacts:
+            config_max = self.config.get('table', {}).get('max_contacts', 5)
+            if args.max_contacts != config_max:
+                changes['table.max_contacts'] = args.max_contacts
+        
+        # Check font preferences (if you add font selection as command line options)
+        if hasattr(args, 'font_primary') and args.font_primary:
+            config_font = self.config.get('fonts', {}).get('primary', 'arial.ttf')
+            if args.font_primary != config_font:
+                changes['fonts.primary'] = args.font_primary
+        
+        if hasattr(args, 'font_bold') and args.font_bold:
+            config_font_bold = self.config.get('fonts', {}).get('bold', 'arialbd.ttf')
+            if args.font_bold != config_font_bold:
+                changes['fonts.bold'] = args.font_bold
+        
+        # Check card dimensions (if you add these as command line options)
+        if hasattr(args, 'card_width') and args.card_width:
+            config_width = self.config.get('card', {}).get('width', 1650)
+            if args.card_width != config_width:
+                changes['card.width'] = args.card_width
+        
+        if hasattr(args, 'card_height') and args.card_height:
+            config_height = self.config.get('card', {}).get('height', 1050)
+            if args.card_height != config_height:
+                changes['card.height'] = args.card_height
+        
+        # Check output quality (if you add this as a command line option)
+        if hasattr(args, 'quality') and args.quality:
+            config_quality = self.config.get('output', {}).get('quality', 95)
+            if args.quality != config_quality:
+                changes['output.quality'] = args.quality
+        
+        if changes:
+            print(f"\nRuntime parameters differ from config file:")
+            for key, value in changes.items():
+                current_value = self._get_nested_config_value(key)
+                print(f"  {key}: {current_value} → {value}")
+            
+            while True:
+                response = input(f"\nSave these settings to {config_file}? (y/n): ").strip().lower()
+                if response in ['y', 'yes']:
+                    self.update_config_file(changes, config_file)
+                    return True
+                elif response in ['n', 'no']:
+                    return False
+                else:
+                    print("Please enter 'y' for yes or 'n' for no.")
+        return False
+
+    def _get_nested_config_value(self, key_path):
+        """Helper method to get current config value using dot notation"""
+        keys = key_path.split('.')
+        current = self.config
+        try:
+            for key in keys:
+                current = current[key]
+            return current
+        except KeyError:
+            return None
+
+        def update_config_file(self, changes, config_file):
+            """Update config file with new values"""
+            try:
+                # Load current config or create new one
+                if os.path.exists(config_file):
+                    with open(config_file, 'r') as f:
+                        config = json.load(f)
+                else:
+                    config = {}
+                
+                # Apply changes using dot notation
+                for key, value in changes.items():
+                    keys = key.split('.')
+                    current = config
+                    for k in keys[:-1]:
+                        if k not in current:
+                            current[k] = {}
+                        current = current[k]
+                    current[keys[-1]] = value
+                
+                # Save updated config
+                with open(config_file, 'w') as f:
+                    json.dump(config, f, indent=2)
+                print(f"Configuration updated and saved to {config_file}")
+                
+            except Exception as e:
+                print(f"Error saving config: {e}")
+
     def check_and_clear_output_dir(self, output_dir):
         """Check if output directory has content and ask user if they want to clear it"""
         if os.path.exists(output_dir) and os.listdir(output_dir):
@@ -48,6 +162,16 @@ class QSLCardGenerator:
             if len(files) > 10:
                 print(f"  ... and {len(files) - 10} more files")
             
+            ask_before_delete = self.config.get('output', {}).get('ask_before_delete', True)
+            if not ask_before_delete:
+                try:
+                    shutil.rmtree(output_dir)
+                    print(f"Auto-cleared directory: {output_dir}")
+                    return True
+                except Exception as e:
+                    print(f"Error clearing directory: {e}")
+                    return False
+
             while True:
                 response = input(f"\nDo you want to delete all content in '{output_dir}'? (y/n): ").strip().lower()
                 if response in ['y', 'yes']:
@@ -70,14 +194,39 @@ class QSLCardGenerator:
         self.template_image = template_image
         self.contacts = []
         
-        # Load configuration
+        # Load configuration FIRST
         self.config = self.load_config(config_file)
+        # THEN resolve template image (command line takes precedence over config)
+        if template_image:
+            self.template_image = template_image
+        else:
+            self.template_image = self.config.get('template', {}).get('default_image')
+        
+        # Print what template we're using for debugging
+        if self.template_image:
+            print(f"Using template: {self.template_image}")
+            if not os.path.exists(self.template_image):
+                print(f"WARNING: Template file not found: {self.template_image}")
+        else:
+            print("No template specified - using blank cards")
+
         self.load_fonts()
         self.load_contacts()
     
     def load_config(self, config_file):
         """Load configuration from JSON file or create default"""
         default_config = {
+            "output": {
+                "default_directory": "qsl_cards",
+                "ask_before_delete": False,
+                "quality": 95
+            },
+            "template": {
+                "default_image": "QSLTemplate.png"
+            },
+            "generation": {
+                "batch_by_call": True
+            },
             "card": {
                 "width": 1650,
                 "height": 1050
@@ -92,23 +241,28 @@ class QSLCardGenerator:
                 "min_row_height": 25,
                 "max_row_height": 40
             },
-            "pota_comment": {
+            "additional_info": {
                 "x": 50,
                 "y_offset": 10,
                 "width_margin": 100,
                 "height_percent": 0.20
             },
-            "fonts": {
-                "primary": "arial.ttf",
-                "bold": "arialbd.ttf",
-                "sizes": {
-                    "large": 24,
-                    "medium": 18,
-                    "small": 14,
-                    "tiny": 12,
-                    "bold": 20
-                }
+            "confirmation_text": {
+                "show_border": False,
+                "text_color": "black"
             },
+              "fonts": {
+                "primary": "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+                "bold": "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
+                "sizes": {
+                  "xlarge": 32,
+                  "large": 24,
+                  "medium": 18,
+                  "small": 14,
+                  "tiny": 12,
+                  "bold": 20
+                }
+              },
             "colors": {
                 "header_bg": "#4a4a4a",
                 "header_text": "white",
@@ -372,13 +526,13 @@ class QSLCardGenerator:
         
         return header_y + table_cfg['header_height'] + (max_contacts * row_height) + 10
     
-    def draw_pota_comment_section(self, draw, contacts):
-        """Draw POTA and comment section"""
+    def draw_additional_info_section(self, draw, contacts):
+        """Draw additional information section (POTA references and comments)"""
         if not any(c.get('pota_ref') or c.get('comment_intl') for c in contacts):
             return
         
         config = self.config
-        pota_cfg = config['pota_comment']
+        additional_cfg = config['additional_info']
         colors = config['colors']
         
         # Calculate section dimensions
@@ -387,10 +541,10 @@ class QSLCardGenerator:
         table_y = int(card_height * config['table']['y_percent'])
         table_height = int(card_height * config['table']['height_percent'])
         
-        section_x = pota_cfg['x']
-        section_y = table_y + table_height + pota_cfg['y_offset'] - 25
-        section_width = card_width - pota_cfg['width_margin']
-        section_height = int(card_height * pota_cfg['height_percent'])
+        section_x = additional_cfg['x']
+        section_y = table_y + table_height + additional_cfg['y_offset'] - 25
+        section_width = card_width - additional_cfg['width_margin']
+        section_height = int(card_height * additional_cfg['height_percent'])
         
         # Draw section
         draw.rectangle([section_x, section_y, section_x + section_width, 
@@ -462,20 +616,32 @@ class QSLCardGenerator:
             if total_cards > 1:
                 confirm_text += f" (Card {card_number} of {total_cards})"
             
+            # Debug: Print font info
+            #print(f"DEBUG: Using font for confirmation text: {self.fonts['large']}")
+            #print(f"DEBUG: Font size configured: {self.config['fonts']['sizes']['large']}")
+            #print(f"DEBUG: Available fonts: {list(self.fonts.keys())}")
+            #print(f"DEBUG: All configured font sizes: {self.config['fonts']['sizes']}")
+            
+            # Use xlarge font if available, otherwise large, or create a temporary large font
+            #confirmation_font = self.fonts['bold']
+            #print(f"DEBUG: Actually using font: {confirmation_font}")
+
             # Text background
             bbox = draw.textbbox((0, 0), confirm_text, font=self.fonts['large'])
             text_width = bbox[2] - bbox[0]
-            #text_x = (self.config['card']['width'] - text_width) // 2
             text_x = (self.config['table']['x'] + 10)
             
+            # Get text color from config
+            text_color = self.config.get('confirmation_text', {}).get('text_color', 'black')
+
             if self.config.get('confirmation_text', {}).get('show_border', False):
                 draw.rectangle([text_x - 10, confirm_y - 5, text_x + text_width + 10, 
                                 confirm_y + bbox[3] - bbox[1] + 5], 
                                 fill='white', outline='black', width=1)
-            draw.text((text_x, confirm_y), confirm_text, fill='black', font=self.fonts['large'])
+            draw.text((text_x, confirm_y), confirm_text, fill=text_color, font=self.fonts['bold'])
         
         self.draw_contact_table(draw, contacts_for_card)
-        self.draw_pota_comment_section(draw, contacts_for_card)
+        self.draw_additional_info_section(draw, contacts_for_card)
         
         return img
     
@@ -487,48 +653,50 @@ class QSLCardGenerator:
         cards_generated = 0
         max_contacts = self.config['table']['max_contacts']
         
-        if batch_by_call:
-            # Group by callsign and create multiple cards if needed
-            grouped = defaultdict(list)
-            for contact in self.contacts:
-                callsign = contact.get('call', '').upper()
-                grouped[callsign].append(contact)
+        # Group contacts by callsign
+        grouped = defaultdict(list)
+        for contact in self.contacts:
+            callsign = contact.get('call', '').upper()
+            grouped[callsign].append(contact)
+        
+        print(f"Processing {len(grouped)} unique callsigns with {len(self.contacts)} total contacts")
+        print(f"Max contacts per card: {max_contacts}")
+        
+        for callsign, contacts in grouped.items():
+            print(f"Processing {callsign} with {len(contacts)} contacts")
             
-            for callsign, contacts in grouped.items():
-                # Split into groups of max_contacts per card
-                contact_groups = [contacts[i:i+max_contacts] for i in range(0, len(contacts), max_contacts)]
-                total_cards = len(contact_groups)
-                
-                for card_num, contact_group in enumerate(contact_groups, 1):
-                    card = self.create_qsl_card(callsign, contact_group, card_num, total_cards, len(contacts))
-                    
-                    filename = f"{callsign}_card_{card_num}_of_{total_cards}.png" if total_cards > 1 else f"{callsign}.png"
-                    filepath = os.path.join(output_dir, filename)
-                    card.save(filepath, 'PNG', quality=95)
-                    cards_generated += 1
-        else:
-            # Individual cards - but still group up to 5 contacts per card per callsign
-            # Group contacts by callsign first
-            grouped = defaultdict(list)
-            for contact in self.contacts:
-                callsign = contact.get('call', '').upper()
-                grouped[callsign].append(contact)
+            # Split contacts into groups (max_contacts per card)
+            contact_groups = []
+            for i in range(0, len(contacts), max_contacts):
+                contact_groups.append(contacts[i:i+max_contacts])
             
-            # Create individual cards for each contact group
-            card_counter = 1
-            for callsign, contacts in grouped.items():
-                # Calculate total cards needed for this callsign
-                contact_groups = [contacts[i:i+max_contacts] for i in range(0, len(contacts), max_contacts)]
-                total_cards_for_callsign = len(contact_groups)
+            total_cards_for_callsign = len(contact_groups)
+            print(f"  Will create {total_cards_for_callsign} cards for {callsign}")
+            
+            # Create cards for this callsign
+            for card_num, contact_group in enumerate(contact_groups, 1):
+                print(f"  Creating card {card_num} of {total_cards_for_callsign} for {callsign} ({len(contact_group)} contacts)")
                 
-                for card_num, contact_group in enumerate(contact_groups, 1):
-                    card = self.create_qsl_card(callsign, contact_group, card_num, total_cards_for_callsign, len(contacts))
-                    
-                    filename = f"{callsign}_{card_counter:03d}.png"
-                    filepath = os.path.join(output_dir, filename)
-                    card.save(filepath, 'PNG', quality=95)
-                    cards_generated += 1
-                    card_counter += 1
+                card = self.create_qsl_card(callsign, contact_group, card_num, total_cards_for_callsign, len(contacts))
+                
+                # Determine filename based on mode
+                if batch_by_call:
+                    # Batch mode naming
+                    if total_cards_for_callsign == 1:
+                        filename = f"{callsign}.png"
+                    else:
+                        filename = f"{callsign}_card_{card_num}_of_{total_cards_for_callsign}.png"
+                else:
+                    # Individual mode naming
+                    if total_cards_for_callsign == 1:
+                        filename = f"{callsign}.png"
+                    else:
+                        filename = f"{callsign}_{card_num}_of_{total_cards_for_callsign}.png"
+                
+                filepath = os.path.join(output_dir, filename)
+                card.save(filepath, 'PNG', quality=self.config['output']['quality'])
+                cards_generated += 1
+                print(f"  Saved: {filename}")
         
         return cards_generated
 
@@ -538,28 +706,80 @@ def main():
     parser.add_argument('template_image', nargs='?', help='Path to template image (optional)')
     parser.add_argument('-c', '--config', default='qsl_config.json', 
                        help='Configuration file (default: qsl_config.json)')
-    parser.add_argument('-d', '--output-dir', default='qsl_cards', 
-                       help='Output directory (default: qsl_cards)')
+    parser.add_argument('-d', '--output-dir', 
+                       help='Output directory (default: from config file)')
     parser.add_argument('-b', '--batch-by-call', action='store_true', 
                        help='Batch contacts by callsign')
     parser.add_argument('--sample', action='store_true', 
                        help='Show first 3 contacts and exit')
+    parser.add_argument('-v', '--version', action='version', 
+                       version=f'QSL Card Generator {__version__} by {__author__}')
+    parser.add_argument('--info', action='store_true', 
+                       help='Show author and version information')
+    
+    # Additional configuration options
+    parser.add_argument('--max-contacts', type=int, 
+                       help='Maximum contacts per card (default: from config)')
+    parser.add_argument('--font-primary', 
+                       help='Primary font file path (default: from config)')
+    parser.add_argument('--font-bold', 
+                       help='Bold font file path (default: from config)')
+    parser.add_argument('--card-width', type=int, 
+                       help='Card width in pixels (default: from config)')
+    parser.add_argument('--card-height', type=int, 
+                       help='Card height in pixels (default: from config)')
+    parser.add_argument('--quality', type=int, choices=range(1, 101), metavar='[1-100]',
+                       help='Output image quality 1-100 (default: from config)')
+    parser.add_argument('--auto-delete', action='store_true', 
+                       help='Automatically delete output directory contents without asking')
     
     args = parser.parse_args()
     
+    if args.info:
+        print(f"QSL Card Generator {__version__}")
+        print(f"Author: {__author__}")
+        print(f"Email: {__email__}")
+        print(f"License: {__license__}")
+        return
+    
     generator = QSLCardGenerator(args.csv_file, args.template_image, args.config)
+    
+    # Use config defaults if no command line args specified
+    if not args.output_dir:
+        args.output_dir = generator.config.get('output', {}).get('default_directory', 'qsl_cards')
+    
+    if not args.template_image:
+        args.template_image = generator.config.get('template', {}).get('default_image')
+    
+    if not args.batch_by_call:
+        args.batch_by_call = generator.config.get('generation', {}).get('batch_by_call', False)
     
     if args.sample:
         print("Sample contacts:")
         for i, contact in enumerate(generator.contacts[:3]):
             print(f"Contact {i+1}: {contact}")
         return
+
+    # Check if runtime args differ from config and offer to save
+    generator.check_and_save_runtime_config(args, args.config)
     
     print(f"Generating cards with template: {args.template_image or 'None'}")
     
+    # At the end of main(), before calling generate_cards:
+    print(f"Total contacts: {len(generator.contacts)}")
+    grouped = defaultdict(list)
+    for contact in generator.contacts:
+        callsign = contact.get('call', '').upper()
+        grouped[callsign].append(contact)
+
+    print(f"Unique callsigns: {len(grouped)}")
+    for callsign, contacts in grouped.items():
+        print(f"  {callsign}: {len(contacts)} contacts")
+
     cards_generated = generator.generate_cards(args.output_dir, args.batch_by_call)
     mode = "batched" if args.batch_by_call else "individual"
-    print(f"Generated {cards_generated} {mode} QSL cards in {args.output_dir}/")
+    print(f"Generated {cards_generated} {mode} QSL cards in {args.output_dir}")
+
 
 if __name__ == "__main__":
     main()
