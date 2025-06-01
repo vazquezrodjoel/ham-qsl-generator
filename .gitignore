@@ -27,3 +27,4 @@ Thumbs.db
 # Test files (optional)
 *.csv
 qsl.png
+qsl_config (Copy).json
