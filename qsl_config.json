@@ -1,0 +1,174 @@
+{
+  "output": {
+    "default_directory": "qsl_cards",
+    "quality": 95
+  },
+  "template": {
+    "default_image": "/home/joelvazquez/Documents/scripts/Ham-QSL-Generator/QSLTemplate.png"
+  },
+  "generation": {
+    "batch_by_call": true
+  },
+  "card": {
+    "width": 1650,
+    "height": 1050
+  },
+  "table": {
+    "x": 50,
+    "y_percent": 0.45,
+    "width_margin": 470,
+    "height_percent": 0.3,
+    "max_contacts": 5,
+    "header_height": 30,
+    "min_row_height": 25,
+    "max_row_height": 40
+  },
+  "additional_info": {
+    "x": 50,
+    "y_offset": 10,
+    "width_margin": 470,
+    "height_percent": 0.232
+  },
+  "confirmation_text": {
+    "show_border": false,
+    "text_color": "black"
+  },
+  "fonts": {
+    "primary": "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+    "bold": "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
+    "sizes": {
+      "xlarge": 32,
+      "large": 24,
+      "medium": 18,
+      "small": 14,
+      "tiny": 12,
+      "bold": 20
+    }
+  },
+  "colors": {
+    "header_bg": "#4a4a4a",
+    "header_text": "white",
+    "row_bg_alt": "#f0f0f0",
+    "digital_mode": "#cc6600",
+    "voice_mode": "#0066ff",
+    "pota_ref": "#0066cc",
+    "comment": "#006600",
+    "section_bg": "#f8f8f8"
+  },
+  "columns": {
+    "widths_percent": [
+      0.14,
+      0.09,
+      0.11,
+      0.12,
+      0.07,
+      0.07,
+      0.09,
+      0.31
+    ],
+    "headers": [
+      "Date",
+      "Time UTC",
+      "Freq(MHz)",
+      "Mode/Sub",
+      "RST S",
+      "RST R",
+      "Band",
+      "Notes"
+    ]
+  },
+  "modes": {
+    "digital": [
+      "FT8",
+      "FT4",
+      "PSK31",
+      "PSK63",
+      "RTTY",
+      "JT4",
+      "JT9",
+      "JT65",
+      "MSK144",
+      "Q65",
+      "FSK441",
+      "WSPR",
+      "JS8",
+      "VARA"
+    ],
+    "digital_main": [
+      "MFSK",
+      "PSK",
+      "RTTY",
+      "DATA",
+      "DIGITAL"
+    ],
+    "voice": [
+      "SSB",
+      "USB",
+      "LSB",
+      "AM",
+      "FM",
+      "PHONE"
+    ],
+    "voice_main": [
+      "SSB",
+      "AM",
+      "FM",
+      "PHONE"
+    ],
+    "special_handling": {
+      "FT8": "FT8",
+      "MFSK/FT4": "FT4",
+      "SSB/USB": "USB",
+      "SSB/LSB": "LSB",
+      "PHONE/USB": "USB",
+      "PHONE/LSB": "LSB"
+    }
+  },
+  "bands": [
+    [
+      1.8,
+      2.0,
+      "160m"
+    ],
+    [
+      3.5,
+      4.0,
+      "80m"
+    ],
+    [
+      7.0,
+      7.3,
+      "40m"
+    ],
+    [
+      14.0,
+      14.35,
+      "20m"
+    ],
+    [
+      21.0,
+      21.45,
+      "15m"
+    ],
+    [
+      28.0,
+      29.7,
+      "10m"
+    ],
+    [
+      50.0,
+      54.0,
+      "6m"
+    ],
+    [
+      144.0,
+      148.0,
+      "2m"
+    ],
+    [
+      420.0,
+      450.0,
+      "70cm"
+    ]
+  ]
+}
