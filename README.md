@@ -1,413 +1,235 @@
 # Ham Radio QSL Card Generator
 
-A Python script that generates professional QSL cards from ham radio contact CSV files with customizable templates and configuration options.
+**Version:** 1.3.0  
+**Author:** Joel Vazquez, WE0DX  
+**License:** MIT
+
+A Python script that reads ham radio contacts from a CSV file and generates professional QSL cards using customizable image templates. Perfect for amateur radio operators who want to automate their QSL card creation process.
 
 ## Features
 
-- **Configurable Layout**: JSON configuration for complete customization
-- **Multiple Card Support**: Handle multiple contacts per card (configurable limit)
-- **Template Support**: Use custom background images or blank cards
-- **Digital Mode Highlighting**: Color-coded digital modes
-- **POTA Integration**: Display POTA references and comments
-- **Batch Processing**: Group contacts by callsign with automatic card numbering
-- **Output Management**: Smart directory handling with user prompts
+- **Template Support**: Use your own QSL card design templates or generate blank cards
+- **CSV Import**: Import contacts from popular logging software (ADIF CSV format)
+- **Multi-Contact Cards**: Configurable number of contacts per card (default: 5)
+- **Callsign Batching**: Group multiple contacts by callsign on single cards
+- **Digital Mode Highlighting**: Automatic color coding for digital modes (FT8, PSK31, etc.)
+- **POTA Support**: Display Parks on the Air (POTA) references
+- **Configuration Management**: JSON-based configuration with easy management commands
+- **Font Customization**: Configurable fonts for different sections
+- **Output Control**: Customizable output directory and image quality
 
-## System Requirements
+## Requirements
 
-### Windows
-- **OS**: Windows 10/11 (64-bit recommended)
-- **Python**: 3.8 or higher
-- **Memory**: 2GB RAM minimum, 4GB recommended
-- **Storage**: 500MB free space
-- **Fonts**: Arial (arial.ttf, arialbd.ttf) - usually pre-installed
+- Python 3.6+
+- Pillow (PIL) library
 
-### macOS
-- **OS**: macOS 10.15 (Catalina) or later
-- **Python**: 3.8 or higher (install via Homebrew recommended)
-- **Memory**: 2GB RAM minimum, 4GB recommended
-- **Storage**: 500MB free space
-- **Fonts**: Arial or system fonts
-
-### Linux
-- **OS**: Ubuntu 18.04+, Debian 10+, CentOS 8+, or equivalent
-- **Python**: 3.8 or higher
-- **Memory**: 1GB RAM minimum, 2GB recommended
-- **Storage**: 500MB free space
-- **Fonts**: Liberation fonts or Microsoft fonts package
+```bash
+pip install Pillow
+```
 
 ## Installation
 
-### Quick Install (All Platforms)
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/qsl-card-generator.git
-cd qsl-card-generator
+1. Clone or download this repository
+2. Install dependencies: `pip install Pillow`
+3. Place your QSL card template image in the same directory (optional)
+4. Prepare your contacts CSV file
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Run with sample data
-python qsl_generator.py sample_contacts.csv
-```
-
-### Platform-Specific Installation
-
-#### Windows
-```powershell
-# Install Python from python.org or Microsoft Store
-# Open Command Prompt or PowerShell as Administrator
-
-# Install dependencies
-pip install Pillow
-
-# Optional: Install fonts if needed
-# Download Arial fonts to C:\Windows\Fonts\
-```
-
-#### macOS
-```bash
-# Install Python via Homebrew
-brew install python3
-
-# Install dependencies
-pip3 install Pillow
-
-# Optional: Install Microsoft fonts
-brew install --cask font-microsoft-office
-```
-
-#### Linux (Ubuntu/Debian)
-```bash
-# Install Python and pip
-sudo apt update
-sudo apt install python3 python3-pip python3-venv
-
-# Install system dependencies
-sudo apt install python3-tk fonts-liberation
-
-# Install Python dependencies
-pip3 install Pillow
-
-# Optional: Install Microsoft fonts
-sudo apt install ttf-mscorefonts-installer
-```
-
-#### Linux (CentOS/RHEL/Fedora)
-```bash
-# CentOS/RHEL
-sudo yum install python3 python3-pip
-# Fedora
-sudo dnf install python3 python3-pip
-
-# Install dependencies
-pip3 install Pillow
-
-# Install fonts
-sudo yum install liberation-fonts
-# or
-sudo dnf install liberation-fonts
-```
-
-## Usage Examples
+## Quick Start
 
 ### Basic Usage
+
 ```bash
-# Generate cards from CSV file
+# Generate cards with default settings
 python qsl_generator.py contacts.csv
 
-# Use custom template image
+# Use a specific template image
 python qsl_generator.py contacts.csv template.jpg
 
-# Specify output directory
-python qsl_generator.py contacts.csv -d my_qsl_cards
-
-# Use custom configuration
-python qsl_generator.py contacts.csv -c my_config.json
+# Use custom configuration file
+python qsl_generator.py contacts.csv --config my_config.json
 ```
 
-### Advanced Usage
+### Configuration Management
+
 ```bash
-# Batch contacts by callsign (multiple cards per station)
-python qsl_generator.py contacts.csv --batch-by-call
+# Create default configuration file
+python qsl_generator.py --create-default-config
 
-# Preview first 3 contacts without generating cards
-python qsl_generator.py contacts.csv --sample
+# Update existing config with new defaults
+python qsl_generator.py --update-config
 
-# Complete example with all options
-python qsl_generator.py my_contacts.csv my_template.jpg \
-  --config custom_config.json \
-  --output-dir final_cards \
-  --batch-by-call
+# Reset configuration (creates backup)
+python qsl_generator.py --reset-config
 ```
 
-### CSV File Format
-Your CSV file should contain these columns (case-insensitive):
+## CSV Format
+
+Your CSV file should contain the following columns (case-insensitive):
+
+| Column | Description | Required |
+|--------|-------------|----------|
+| call | Callsign | Yes |
+| qso_date | Date (YYYY-MM-DD, MM/DD/YYYY, etc.) | Yes |
+| time_on | Time (HHMM or HH:MM format) | Yes |
+| freq | Frequency in MHz or Hz | Yes |
+| mode | Operating mode (SSB, CW, FT8, etc.) | Yes |
+| submode | Sub-mode (optional) | No |
+| rst_sent | RST sent | No |
+| rst_rcvd | RST received | No |
+| band | Band (auto-calculated if not provided) | No |
+| comment_intl | Comments | No |
+| pota_ref | POTA reference (e.g., K-1234) | No |
+
+### Example CSV
+
 ```csv
-call,qso_date,time_on,freq,mode,submode,rst_sent,rst_rcvd,band,comment_intl,pota_ref
-W1ABC,2024-01-15,1430,14.074,DATA,FT8,+05,-12,20m,73 from grid FN42,
-K2XYZ,2024-01-15,1445,14.230,SSB,,59,57,20m,Nice signal!,K-1234
+call,qso_date,time_on,freq,mode,submode,rst_sent,rst_rcvd,comment_intl,pota_ref
+W1ABC,2024-05-15,1430,14.074,MFSK,FT8,+03,-10,Great signal!,K-1234
+VE2XYZ,2024-05-15,1445,21.200,SSB,,59,59,Thanks for POTA!,K-1234
+JA1TEST,2024-05-16,0800,7.074,MFSK,FT4,-05,+12,First JA contact,
 ```
 
-### Configuration Examples
+## Configuration
 
-#### Basic Configuration (qsl_config.json)
-```json
-{
-  "table": {
-    "max_contacts": 8
-  },
-  "fonts": {
-    "sizes": {
-      "large": 28,
-      "medium": 20
-    }
-  },
-  "confirmation_text": {
-    "show_border": false
-  }
-}
-```
-
-#### Advanced Configuration
-```json
-{
-  "card": {
-    "width": 1800,
-    "height": 1200
-  },
-  "colors": {
-    "digital_mode": "#ff6600",
-    "pota_ref": "#0080ff"
-  },
-  "table": {
-    "max_contacts": 10,
-    "y_percent": 0.40
-  }
-}
-```
-
-## Repository Setup Instructions
-
-### 1. Initialize Git Repository
-```bash
-# Create new directory
-mkdir qsl-card-generator
-cd qsl-card-generator
-
-# Initialize git
-git init
-git branch -M main
-```
-
-### 2. Create Project Structure
-```
-qsl-card-generator/
-├── qsl_generator.py          # Main script
-├── requirements.txt          # Python dependencies
-├── README.md                # This file
-├── LICENSE                  # License file
-├── .gitignore              # Git ignore rules
-├── config/
-│   ├── default_config.json # Default configuration
-│   └── sample_config.json  # Example configurations
-├── examples/
-│   ├── sample_contacts.csv # Sample data
-│   └── sample_template.jpg # Sample template
-├── docs/
-│   ├── CONFIGURATION.md    # Configuration guide
-│   └── TROUBLESHOOTING.md  # Common issues
-└── tests/
-    └── test_generator.py   # Unit tests
-```
-
-### 3. Create Essential Files
-
-#### requirements.txt
-```
-Pillow>=9.0.0
-```
-
-#### .gitignore
-```
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# QSL Generator specific
-qsl_cards/
-output/
-*.png
-*.jpg
-*.jpeg
-!examples/*.jpg
-!examples/*.png
-config/local_*.json
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-```
-
-#### LICENSE (MIT License)
-```
-MIT License
-
-Copyright (c) 2024 [Your Name]
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-### 4. Create and Push to GitHub
-```bash
-# Add all files
-git add .
-git commit -m "Initial commit: QSL Card Generator v1.2.0"
-
-# Create repository on GitHub, then:
-git remote add origin https://github.com/yourusername/qsl-card-generator.git
-git push -u origin main
-```
-
-## Configuration Guide
+The script uses a JSON configuration file (`qsl_config.json` by default) to customize appearance and behavior. Key configuration sections include:
 
 ### Card Dimensions
-- **Standard QSL**: 1650x1050 (5.5" x 3.5" at 300 DPI)
-- **Large Format**: 1800x1200 (6" x 4" at 300 DPI)
-- **Custom**: Adjust `card.width` and `card.height`
-
-### Color Schemes
 ```json
-{
-  "colors": {
-    "header_bg": "#2c3e50",
-    "header_text": "white",
-    "digital_mode": "#e74c3c",
-    "pota_ref": "#3498db",
-    "comment": "#27ae60"
+"card": {
+  "width": 1650,
+  "height": 1050
+}
+```
+
+### Table Layout
+```json
+"table": {
+  "max_contacts": 5,
+  "x": 50,
+  "y_percent": 0.45,
+  "width_margin": 470,
+  "height_percent": 0.3
+}
+```
+
+### Fonts
+```json
+"fonts": {
+  "primary": "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+  "bold": "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
+  "sizes": {
+    "xlarge": 32,
+    "large": 24,
+    "medium": 18,
+    "small": 14
   }
 }
 ```
 
-### Font Configuration
+### Colors
 ```json
-{
-  "fonts": {
-    "primary": "arial.ttf",
-    "bold": "arialbd.ttf",
-    "sizes": {
-      "large": 24,
-      "medium": 18,
-      "small": 14
-    }
-  }
+"colors": {
+  "digital_mode": "#cc6600",
+  "voice_mode": "#0066ff",
+  "pota_ref": "#0066cc",
+  "comment": "#006600"
 }
 ```
+
+## Command Line Options
+
+| Option | Description |
+|--------|-------------|
+| `--config` | Specify configuration file |
+| `--output-dir` | Output directory |
+| `--batch-by-call` | Group contacts by callsign |
+| `--sample` | Show first 3 contacts and exit |
+| `--max-contacts` | Maximum contacts per card |
+| `--quality` | Output image quality (1-100) |
+| `--update-config` | Update config with missing defaults |
+| `--create-default-config` | Create new default config |
+| `--reset-config` | Reset config with backup |
+
+## Output
+
+The script generates PNG files in the specified output directory:
+
+- **Single card per callsign**: `W1ABC.png`
+- **Multiple cards per callsign**: `W1ABC_card_1_of_3.png`
+
+Cards include:
+- QSL confirmation text with contact count
+- Formatted contact table with date, time, frequency, mode, RST reports
+- Additional information section with comments and POTA references
+- Digital mode color highlighting
+- Professional layout matching your template
+
+## Template Images
+
+- Supports common image formats (PNG, JPG, etc.)
+- Automatically resized to configured card dimensions
+- If no template provided, generates cards with white background
+- Template should be designed for standard QSL card proportions
+
+## Supported Modes
+
+### Digital Modes (Orange highlighting)
+- FT8, FT4, PSK31, PSK63, RTTY, JT4, JT9, JT65
+- MSK144, Q65, FSK441, WSPR, JS8, VARA
+
+### Voice Modes (Blue highlighting)
+- SSB, USB, LSB, AM, FM, PHONE
+
+### Band Detection
+Automatic band detection from frequency:
+- 160m, 80m, 40m, 20m, 15m, 10m
+- 6m, 2m, 70cm
 
 ## Troubleshooting
 
-### Common Issues
+### Font Issues
+If you see "Warning: Using default fonts", install system fonts or specify font paths in configuration:
 
-**"Font not found" error**
-- Windows: Ensure Arial fonts are in C:\Windows\Fonts\
-- macOS: Install Microsoft Office fonts
-- Linux: Install `fonts-liberation` or `ttf-mscorefonts-installer`
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install fonts-ubuntu
+```
 
-**"Permission denied" when clearing output directory**
-- Close any image viewers showing QSL cards
-- Run terminal as administrator (Windows)
-- Check file permissions
+**Windows:** Use system fonts like `arial.ttf`, `calibri.ttf`
 
-**Cards look too small/large**
-- Adjust DPI settings in your image viewer
-- Modify `card.width` and `card.height` in config
-- Check template image resolution
+**macOS:** Use system fonts in `/System/Library/Fonts/`
 
-**CSV parsing errors**
-- Ensure CSV has proper headers
-- Check for special characters in callsigns
-- Verify date/time formats
+### Template Not Found
+Ensure template image path is correct or use `--create-default-config` to see expected paths.
 
-### Performance Tips
-
-- Use smaller template images for faster processing
-- Limit contacts per card for better readability
-- Process large datasets in batches
-- Use SSD storage for better I/O performance
+### CSV Import Issues
+- Ensure CSV has required columns (`call`, `qso_date`, `time_on`, `freq`, `mode`)
+- Check date format (YYYY-MM-DD recommended)
+- Verify frequency is in MHz or Hz
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Support
+## Contact
 
-- **Issues**: Report bugs on GitHub Issues
-- **Discussions**: Use GitHub Discussions for questions
-- **Email**: [your-email@example.com]
-- **QRZ**: [Your callsign]
+**Joel Vazquez, WE0DX**  
+Email: joelvazquez@we0dx.us
 
-## Changelog
+## Acknowledgments
 
-### v1.2.0 (2024-05-30)
-- Added configurable contact limits per card
-- Improved Additional Information section layout
-- Added output directory management
-- Enhanced configuration options
+- Amateur radio community for feedback and testing
+- Python Pillow library for image processing capabilities
+- POTA (Parks on the Air) program for additional logging features
 
-### v1.1.0 (2024-05-15)
-- Added confirmation text border control
-- Improved font handling
-- Better error handling
+---
 
-### v1.0.0 (2024-05-01)
-- Initial release
-- Basic QSL card generation
-- Template support
-- CSV import functionality
+**73!** 📻
