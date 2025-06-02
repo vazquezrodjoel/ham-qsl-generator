@@ -1,0 +1,4 @@
+# QSL Card Generator Requirements
+# Install with: pip install -r requirements.txt
+
+Pillow>=10.0.0

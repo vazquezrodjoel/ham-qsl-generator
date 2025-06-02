@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ham Radio QSL Card Generator with Configuration Support
-Version: 1.2.0
+Version: 1.3.0
 Last Modified: 2025-05-30
 Author: Joel Vazquez, WE0DX
 License: MIT
@@ -21,7 +21,20 @@ pip install Pillow
 Usage:
 python qsl_generator.py contacts.csv [template.jpg] --config config.json
 
+# Update existing config with missing defaults
+python qsl_generator.py --update-config
+
+# Create new default config
+python qsl_generator.py --create-default-config
+
+# Reset config with backup
+python qsl_generator.py --reset-config
+
+# Use custom config file name
+python qsl_generator.py --update-config -c my_config.json
+
 Changelog:
+v1.3.0 - Added configurable fonts per section from the configuration json file.
 v1.2.0 - Added configurable contact limits, improved Additional Info section
 v1.1.0 - Added confirmation text border control, output directory management
 v1.0.0 - Initial release
@@ -36,13 +49,322 @@ import sys
 import os
 from PIL import Image, ImageDraw, ImageFont
 import shutil
+from pathlib import Path
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 __author__ = "Author: Joel Vazquez, WE0DX"
 __email__ = "joelvazquez@we0dx.us"
 __license__ = "MIT"
 
 class QSLCardGenerator:
+    def update_config_with_defaults(self, config_file):
+        """Update existing config file with any missing default values"""
+        print(f"Updating {config_file} with missing default values...")
+        
+        # Get the default config
+        default_config = self.get_default_config()
+        
+        # Load existing config or create empty dict
+        existing_config = {}
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, 'r') as f:
+                    existing_config = json.load(f)
+            except Exception as e:
+                print(f"Error reading existing config: {e}")
+                return False
+        
+        # Find missing keys
+        missing_keys = []
+        def find_missing_keys(default_dict, existing_dict, path=""):
+            for key, value in default_dict.items():
+                current_path = f"{path}.{key}" if path else key
+                if key not in existing_dict:
+                    missing_keys.append(current_path)
+                elif isinstance(value, dict) and isinstance(existing_dict.get(key), dict):
+                    find_missing_keys(value, existing_dict[key], current_path)
+        
+        find_missing_keys(default_config, existing_config)
+        
+        if not missing_keys:
+            print("Configuration file is already up to date!")
+            return True
+        
+        print(f"Found {len(missing_keys)} missing configuration keys:")
+        for key in missing_keys:
+            print(f"  + {key}")
+        
+        # Merge configurations (keeping existing values, adding missing defaults)
+        updated_config = self.merge_configs(default_config, existing_config)
+        
+        try:
+            # Create backup of existing config
+            if os.path.exists(config_file):
+                backup_file = f"{config_file}.backup"
+                shutil.copy2(config_file, backup_file)
+                print(f"Backup created: {backup_file}")
+            
+            # Save updated config
+            with open(config_file, 'w') as f:
+                json.dump(updated_config, f, indent=2)
+            print(f"Configuration updated successfully: {config_file}")
+            return True
+            
+        except Exception as e:
+            print(f"Error updating config file: {e}")
+            return False
+
+    def create_default_config_file(self, config_file):
+        """Create a new default configuration file"""
+        if os.path.exists(config_file):
+            response = input(f"Config file '{config_file}' already exists. Overwrite? (y/n): ").strip().lower()
+            if response not in ['y', 'yes']:
+                print("Operation cancelled.")
+                return False
+        
+        default_config = self.get_default_config()
+        
+        try:
+            with open(config_file, 'w') as f:
+                json.dump(default_config, f, indent=2)
+            print(f"Default configuration created: {config_file}")
+            return True
+        except Exception as e:
+            print(f"Error creating default config: {e}")
+            return False
+
+    def reset_config_with_backup(self, config_file):
+        """Save current config as backup and create new default config"""
+        if not os.path.exists(config_file):
+            print(f"Config file '{config_file}' does not exist. Creating default configuration.")
+            return self.create_default_config_file(config_file)
+        
+        # Create backup filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = f"{config_file}.{timestamp}.old"
+        
+        try:
+            # Create backup
+            shutil.copy2(config_file, backup_file)
+            print(f"Current configuration backed up to: {backup_file}")
+            
+            # Create new default config
+            default_config = self.get_default_config()
+            with open(config_file, 'w') as f:
+                json.dump(default_config, f, indent=2)
+            print(f"Default configuration recreated: {config_file}")
+            return True
+            
+        except Exception as e:
+            print(f"Error during config reset: {e}")
+            return False
+
+    def get_default_config(self):
+        """Get the default configuration dictionary"""
+        return {
+            "output": {
+                "default_directory": "qsl_cards",
+                "quality": 95
+            },
+            "template": {
+                "default_image": "QSLTemplate.png"
+            },
+            "generation": {
+                "batch_by_call": True
+            },
+            "card": {
+                "width": 1650,
+                "height": 1050
+            },
+            "table": {
+                "x": 50,
+                "y_percent": 0.45,
+                "width_margin": 470,
+                "height_percent": 0.3,
+                "max_contacts": 5,
+                "header_height": 40,
+                "min_row_height": 25,
+                "max_row_height": 40
+            },
+            "additional_info": {
+                "header_height": 40,
+                "x": 50,
+                "y_offset": 10,
+                "width_margin": 470,
+                "height_percent": 0.232,
+                "show_default_message": True,
+                "default_message": "Thanks for the contact(s)!",
+                "default_messages": [
+                    "Thanks for the contact(s)!",
+                    "73 and thanks for the QSO!",
+                    "Great contacts today!",
+                    "Happy to work you!",
+                    "Thanks for the chat!",
+                    "Hope to catch you again on the other bands!",
+                    "Enjoyed our QSO!",
+                    "Thanks for stopping by!",
+                    "Always a pleasure!",
+                    "See you on the bands!"
+                ],
+                "comment_max_width": 800,
+                "columns": {
+                    "date_band_offset": 10,
+                    "comment_offset": 200,
+                    "pota_offset": 400
+                },
+                "fonts": {
+                    "header": "bold",
+                    "date_band": "medium",
+                    "comment": "medium",
+                    "pota": "medium",
+                    "default_message": "large"
+                }
+            },
+            "confirmation_text": {
+                "show_border": False,
+                "text_color": "black",
+                "position": {
+                    "x_offset": 10,
+                    "y_offset": -40,
+                    "min_y": 50
+                }
+            },
+            "fonts": {
+                "primary": "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+                "bold": "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
+                "sizes": {
+                "xlarge": 32,
+                "large": 24,
+                "medium": 18,
+                "small": 14,
+                "tiny": 12,
+                "bold": 26
+                },
+                "section_sizes": {
+                "confirmation_text": "xlarge",
+                "table_header": "bold", 
+                "table_data": "large",
+                "additional_info_header": "bold",
+                "additional_info_data": "medium"
+                }
+            },
+            "colors": {
+                "header_bg": "#4a4a4a",
+                "header_text": "white",
+                "row_bg_alt": "#f0f0f0",
+                "digital_mode": "#cc6600",
+                "voice_mode": "#0066ff",
+                "pota_ref": "#0066cc",
+                "comment": "#006600",
+                "section_bg": "#f8f8f8",
+                "default_message": "#666666"
+            },
+            "columns": {
+                "widths_percent": [0.14,0.09,0.11,0.12,0.07,0.07,0.09,0.31],
+                "headers": ["Date","UTC","Freq(MHz)","Mode/Sub","RST S","RST R","Band","Notes"]
+            },
+            "modes": {
+                "digital": [
+                "FT8",
+                "FT4",
+                "PSK31",
+                "PSK63",
+                "RTTY",
+                "JT4",
+                "JT9",
+                "JT65",
+                "MSK144",
+                "Q65",
+                "FSK441",
+                "WSPR",
+                "JS8",
+                "VARA"
+                ],
+                "digital_main": [
+                "MFSK",
+                "PSK",
+                "RTTY",
+                "DATA",
+                "DIGITAL"
+                ],
+                "voice": [
+                "SSB",
+                "USB",
+                "LSB",
+                "AM",
+                "FM",
+                "PHONE"
+                ],
+                "voice_main": [
+                "SSB",
+                "AM",
+                "FM",
+                "PHONE"
+                ],
+                "special_handling": {
+                "FT8": "FT8",
+                "MFSK/FT4": "FT4",
+                "SSB/USB": "USB",
+                "SSB/LSB": "LSB",
+                "PHONE/USB": "USB",
+                "PHONE/LSB": "LSB"
+                }
+            },
+            "bands": [
+                [
+                1.8,
+                2.0,
+                "160m"
+                ],
+                [
+                3.5,
+                4.0,
+                "80m"
+                ],
+                [
+                7.0,
+                7.3,
+                "40m"
+                ],
+                [
+                14.0,
+                14.35,
+                "20m"
+                ],
+                [
+                21.0,
+                21.45,
+                "15m"
+                ],
+                [
+                28.0,
+                29.7,
+                "10m"
+                ],
+                [
+                50.0,
+                54.0,
+                "6m"
+                ],
+                [
+                144.0,
+                148.0,
+                "2m"
+                ],
+                [
+                420.0,
+                450.0,
+                "70cm"
+                ]
+            ]
+        }
+
+    def get_font_for_section(self, section_name):
+        """Get the appropriate font for a given section based on configuration"""
+        section_sizes = self.config['fonts'].get('section_sizes', {})
+        size_name = section_sizes.get(section_name, 'medium')  # default to medium if not configured
+        return self.fonts.get(size_name, self.fonts['medium'])
+    
     def check_and_save_runtime_config(self, args, config_file):
         """Check if runtime arguments differ from config and offer to save them"""
         changes = {}
@@ -215,82 +537,7 @@ class QSLCardGenerator:
     
     def load_config(self, config_file):
         """Load configuration from JSON file or create default"""
-        default_config = {
-            "output": {
-                "default_directory": "qsl_cards",
-                "ask_before_delete": False,
-                "quality": 95
-            },
-            "template": {
-                "default_image": "QSLTemplate.png"
-            },
-            "generation": {
-                "batch_by_call": True
-            },
-            "card": {
-                "width": 1650,
-                "height": 1050
-            },
-            "table": {
-                "x": 50,
-                "y_percent": 0.45,
-                "width_margin": 470,
-                "height_percent": 0.30,
-                "max_contacts": 5,
-                "header_height": 30,
-                "min_row_height": 25,
-                "max_row_height": 40
-            },
-            "additional_info": {
-                "x": 50,
-                "y_offset": 10,
-                "width_margin": 100,
-                "height_percent": 0.20
-            },
-            "confirmation_text": {
-                "show_border": False,
-                "text_color": "black"
-            },
-              "fonts": {
-                "primary": "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
-                "bold": "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
-                "sizes": {
-                  "xlarge": 32,
-                  "large": 24,
-                  "medium": 18,
-                  "small": 14,
-                  "tiny": 12,
-                  "bold": 20
-                }
-              },
-            "colors": {
-                "header_bg": "#4a4a4a",
-                "header_text": "white",
-                "row_bg_alt": "#f0f0f0",
-                "digital_mode": "#cc6600",
-                "pota_ref": "#0066cc",
-                "comment": "#006600",
-                "section_bg": "#f8f8f8"
-            },
-            "columns": {
-                "widths_percent": [0.14, 0.09, 0.11, 0.12, 0.07, 0.07, 0.09, 0.31],
-                "headers": ["Date", "Time UTC", "Freq(MHz)", "Mode/Sub", "RST S", "RST R", "Band", "Notes"]
-            },
-            "modes": {
-                "digital": ["FT8", "FT4", "PSK31", "PSK63", "RTTY", "JT4", "JT9", "JT65", 
-                           "MSK144", "Q65", "FSK441", "WSPR", "JS8", "VARA"],
-                "digital_main": ["MFSK", "PSK", "RTTY", "DATA", "DIGITAL"],
-                "special_handling": {
-                    "FT8": "FT8",
-                    "MFSK/FT4": "FT4"
-                }
-            },
-            "bands": [
-                [1.8, 2.0, "160m"], [3.5, 4.0, "80m"], [7.0, 7.3, "40m"],
-                [14.0, 14.35, "20m"], [21.0, 21.45, "15m"], [28.0, 29.7, "10m"],
-                [50.0, 54.0, "6m"], [144.0, 148.0, "2m"], [420.0, 450.0, "70cm"]
-            ]
-        }
+        default_config = self.get_default_config()
         
         if config_file and os.path.exists(config_file):
             try:
@@ -486,7 +733,7 @@ class QSLCardGenerator:
         current_x = table_x
         for i, header in enumerate(headers):
             draw.text((current_x + 5, header_y + 6), header, 
-                     fill=colors['header_text'], font=self.fonts['small'])
+                fill=colors['header_text'], font=self.get_font_for_section('table_header'))
             if i < len(col_widths) - 1:
                 sep_x = current_x + col_widths[i]
                 draw.line([sep_x, header_y, sep_x, header_y + table_cfg['header_height']], 
@@ -516,7 +763,7 @@ class QSLCardGenerator:
                     display_text = str(data)[:max_chars] if data else ''
                     
                     draw.text((current_x + 5, row_y + 6), display_text, 
-                             fill=text_color, font=self.fonts['small'])
+                        fill=text_color, font=self.get_font_for_section('table_data'))
                     
                     if i < len(col_widths) - 1:
                         sep_x = current_x + col_widths[i]
@@ -527,12 +774,17 @@ class QSLCardGenerator:
         return header_y + table_cfg['header_height'] + (max_contacts * row_height) + 10
     
     def draw_additional_info_section(self, draw, contacts):
-        """Draw additional information section (POTA references and comments)"""
-        if not any(c.get('pota_ref') or c.get('comment_intl') for c in contacts):
-            return
-        
+        """Draw additional information section (POTA references and comments) with lines"""
         config = self.config
         additional_cfg = config['additional_info']
+        
+        # Check if we have any additional info or should show default message
+        has_additional_info = any(c.get('pota_ref') or c.get('comment_intl') for c in contacts)
+        show_default_message = additional_cfg.get('show_default_message', False)
+        
+        if not has_additional_info and not show_default_message:
+            return
+        
         colors = config['colors']
         
         # Calculate section dimensions
@@ -540,64 +792,227 @@ class QSLCardGenerator:
         card_height = config['card']['height']
         table_y = int(card_height * config['table']['y_percent'])
         table_height = int(card_height * config['table']['height_percent'])
-        
         section_x = additional_cfg['x']
         section_y = table_y + table_height + additional_cfg['y_offset'] - 25
         section_width = card_width - additional_cfg['width_margin']
         section_height = int(card_height * additional_cfg['height_percent'])
-        
-        # Draw section
-        draw.rectangle([section_x, section_y, section_x + section_width, 
-                       section_y + section_height], 
-                      fill=colors['section_bg'], outline='black', width=1)
-        
-        # Header with background
-        header_height = 30
-        draw.rectangle([section_x, section_y, section_x + section_width, 
-                       section_y + header_height], 
-                      fill=colors['header_bg'], outline='black', width=1)
-        draw.text((section_x + 10, section_y + 5), "Additional Information", 
-                 fill=colors['header_text'], font=self.fonts['bold'])
-        
-        # Contact info (fixed row height, no vertical centering)
-        max_contacts = self.config['table']['max_contacts']
-        info_row_height = 20  # Fixed height per row
+        table_header_height = additional_cfg['header_height']
 
+        # Draw section
+        draw.rectangle([section_x, section_y, section_x + section_width,
+                    section_y + section_height],
+                    fill=colors['section_bg'], outline='black', width=1)
         
+        # Header with background - USE CONFIGURABLE FONT
+        header_height = table_header_height
+        draw.rectangle([section_x, section_y, section_x + section_width,
+                    section_y + header_height],
+                    fill=colors['header_bg'], outline='black', width=1)
+        
+        # Get header font from config
+        header_font_size = additional_cfg.get('fonts', {}).get('header', 'bold')
+        header_font = self.fonts.get(header_font_size, self.fonts['bold'])
+        
+        draw.text((section_x + 10, section_y + 5), "Additional Information",
+                fill=colors['header_text'], font=header_font)
+        
+        # Calculate available space and row dimensions
+        available_height = section_height - header_height - 20
         max_contacts = self.config['table']['max_contacts']
-        for row_idx, contact in enumerate(contacts[:max_contacts]):
+        
+        # Filter contacts that have additional info
+        contacts_with_info = [c for c in contacts[:max_contacts] 
+                            if c.get('pota_ref') or c.get('comment_intl')]
+        
+        # If no contacts have additional info but we want to show default message
+        if not contacts_with_info and show_default_message:
+            import random
+            
+            # Get random message from config
+            default_messages = additional_cfg.get('default_messages', ['Thanks for the contact(s)!'])
+            if isinstance(default_messages, list) and len(default_messages) > 0:
+                default_message = random.choice(default_messages)
+            else:
+                default_message = additional_cfg.get('default_message', 'Thanks for the contact(s)!')
+            
+            # Calculate vertical center position for default message
+            content_y = section_y + header_height + 10
+            content_height = section_height - header_height - 20
+            message_y = content_y + (content_height // 2) - 10
+            
+            # GET DEFAULT MESSAGE FONT FROM CONFIG
+            default_msg_font_size = additional_cfg.get('fonts', {}).get('default_message', 'large')
+            default_msg_font = self.fonts.get(default_msg_font_size, self.fonts['large'])
+            
+            # Draw default message centered
+            try:
+                message_bbox = draw.textbbox((0, 0), default_message, font=default_msg_font)
+                message_width = message_bbox[2] - message_bbox[0]
+                message_x = section_x + (section_width - message_width) // 2
+            except:
+                message_x = section_x + (section_width - len(default_message) * 7) // 2
+            
+            message_color = colors.get('default_message', colors.get('comment', 'black'))
+            
+            draw.text((message_x, message_y), default_message,
+                    fill=message_color, font=default_msg_font)
+            return
+        
+        if not contacts_with_info:
+            return
+        
+        # Calculate dynamic row height based on available space
+        base_row_height = additional_cfg.get('base_row_height', 22)
+        row_spacing = additional_cfg.get('row_spacing', 5)
+        total_row_height = base_row_height + row_spacing
+        info_row_height = max(total_row_height, min(35, available_height // len(contacts_with_info)))
+        
+        # Define column positions and widths from config
+        col_positions = {
+            'date_band': section_x + additional_cfg['columns']['date_band_offset'],
+            'comment': section_x + additional_cfg['columns']['comment_offset'],
+            'pota': section_x + additional_cfg['columns']['pota_offset']
+        }
+        
+        # Calculate maximum comment width
+        comment_max_width = additional_cfg.get('comment_max_width', None)
+        if comment_max_width:
+            max_comment_width = comment_max_width
+        else:
+            estimated_pota_width = 80
+            max_comment_width = section_width - (col_positions['comment'] - section_x) - estimated_pota_width - 30
+        
+        # GET FONTS FROM CONFIG
+        date_band_font_size = additional_cfg.get('fonts', {}).get('date_band', 'medium')
+        comment_font_size = additional_cfg.get('fonts', {}).get('comment', 'medium')
+        pota_font_size = additional_cfg.get('fonts', {}).get('pota', 'medium')
+        
+        date_band_font = self.fonts.get(date_band_font_size, self.fonts['medium'])
+        comment_font = self.fonts.get(comment_font_size, self.fonts['medium'])
+        pota_font = self.fonts.get(pota_font_size, self.fonts['medium'])
+        
+        # Get line configuration options
+        show_row_lines = additional_cfg.get('show_row_lines', True)
+        show_column_lines = additional_cfg.get('show_column_lines', False)
+        line_color = colors.get('grid_lines', 'lightgray')
+        line_width = additional_cfg.get('line_width', 1)
+        
+        # Draw column separator lines if enabled
+        if show_column_lines:
+            # Vertical line between date/band and comment columns
+            comment_line_x = col_positions['comment'] - 10
+            draw.line([comment_line_x, section_y + header_height, 
+                    comment_line_x, section_y + section_height - 5],
+                    fill=line_color, width=line_width)
+            
+            # Vertical line between comment and POTA columns (only if POTA column is used)
+            if any(c.get('pota_ref') for c in contacts_with_info):
+                pota_line_x = col_positions['pota'] - 10  
+                draw.line([pota_line_x, section_y + header_height,
+                        pota_line_x, section_y + section_height - 5],
+                        fill=line_color, width=line_width)
+        
+        for row_idx, contact in enumerate(contacts_with_info):
+            # Check if we have enough vertical space
+            info_y = section_y + header_height + 10 + (row_idx * info_row_height)
+            if info_y + info_row_height > section_y + section_height - 5:
+                break
+            
+            # Draw horizontal row separator line if enabled (after each row except the last)
+            if show_row_lines and row_idx < len(contacts_with_info) - 1:
+                line_spacing = additional_cfg.get('row_line_spacing', 5)
+                line_y = info_y + info_row_height - line_spacing
+                draw.line([section_x + 5, line_y, section_x + section_width - 5, line_y],
+                        fill=line_color, width=line_width)
+            
             callsign = contact.get('call', '').upper()
             pota_ref = contact.get('pota_ref', '').strip().upper()
             comment = contact.get('comment_intl', '')
             
-            if not pota_ref and not comment:
-                continue
-            
-            info_y = section_y + header_height + 10 + (row_idx * info_row_height)  # Changed this line
-            current_x = section_x + 10
-            
-            # Date and Band
+            # Date and Band - USE CONFIGURABLE FONT
             contact_data = self.format_data(contact)
-            date_band = f"{contact_data[0]} on {contact_data[6]}:"  # Date and Band from formatted data
-            draw.text((current_x, info_y), date_band, 
-                    fill='black', font=self.fonts['small'])
-            current_x += 140  # Increased spacing for longer text
+            date_band = f"{contact_data[0]} {contact_data[6]}"
             
-            # POTA
-            if pota_ref:
-                draw.text((current_x, info_y), f"POTA: {pota_ref}", 
-                         fill=colors['pota_ref'], font=self.fonts['small'])
-                current_x += 105
+            # Measure text width to ensure it fits
+            try:
+                date_band_bbox = draw.textbbox((0, 0), date_band, font=date_band_font)
+                date_band_width = date_band_bbox[2] - date_band_bbox[0]
+            except:
+                date_band_width = len(date_band) * 7
             
-            # Comment
+            # Truncate date/band if too long
+            if date_band_width > (col_positions['comment'] - col_positions['date_band'] - 10):
+                while date_band_width > (col_positions['comment'] - col_positions['date_band'] - 20) and len(date_band) > 5:
+                    date_band = date_band[:-4] + "..."
+                    try:
+                        date_band_bbox = draw.textbbox((0, 0), date_band, font=date_band_font)
+                        date_band_width = date_band_bbox[2] - date_band_bbox[0]
+                    except:
+                        date_band_width = len(date_band) * 7
+            
+            draw.text((col_positions['date_band'], info_y), date_band,
+                    fill='black', font=date_band_font)
+            
+            # Comment - USE CONFIGURABLE FONT
+            comment_end_x = col_positions['comment']
             if comment:
-                max_chars = max(20, (section_width - (current_x - section_x) - 20) // 6)
+                # Calculate maximum characters that fit in available space
+                try:
+                    sample_bbox = draw.textbbox((0, 0), "M", font=comment_font)
+                    char_width = sample_bbox[2] - sample_bbox[0]
+                except:
+                    char_width = 8
+                
+                max_chars = max(10, max_comment_width // char_width)
                 comment_text = comment[:max_chars-3] + "..." if len(comment) > max_chars else comment
+                
                 text_color = colors['digital_mode'] if self.is_digital_mode(
                     contact.get('mode'), contact.get('submode')) else colors['comment']
                 
-                draw.text((current_x, info_y), comment_text, 
-                         fill=text_color, font=self.fonts['tiny'])
+                draw.text((col_positions['comment'], info_y), comment_text,
+                        fill=text_color, font=comment_font)
+                        
+                # Calculate actual end position of comment text
+                try:
+                    comment_bbox = draw.textbbox((0, 0), comment_text, font=comment_font)
+                    comment_width = comment_bbox[2] - comment_bbox[0]
+                    comment_end_x = col_positions['comment'] + comment_width + 15
+                except:
+                    comment_end_x = col_positions['comment'] + len(comment_text) * char_width + 15
+            
+            # POTA Reference - USE CONFIGURABLE FONT
+            if pota_ref:
+                pota_text = f"POTA: {pota_ref}"
+                
+                # Use dynamic positioning if comment exists, otherwise use configured position
+                if comment:
+                    pota_x = max(comment_end_x, col_positions['pota'])
+                else:
+                    pota_x = col_positions['pota']
+                
+                # Measure POTA text width
+                try:
+                    pota_bbox = draw.textbbox((0, 0), pota_text, font=pota_font)
+                    pota_width = pota_bbox[2] - pota_bbox[0]
+                except:
+                    pota_width = len(pota_text) * 7
+                
+                # Calculate available space for POTA
+                max_pota_width = section_width - (pota_x - section_x) - 20
+                
+                # Truncate POTA if too long
+                if pota_width > max_pota_width:
+                    while pota_width > max_pota_width - 20 and len(pota_text) > 8:
+                        pota_text = pota_text[:-4] + "..."
+                        try:
+                            pota_bbox = draw.textbbox((0, 0), pota_text, font=pota_font)
+                            pota_width = pota_bbox[2] - pota_bbox[0]
+                        except:
+                            pota_width = len(pota_text) * 7
+                
+                draw.text((pota_x, info_y), pota_text,
+                        fill=colors['pota_ref'], font=pota_font)
+
     
     def create_qsl_card(self, callsign, contacts, card_number=1, total_cards=1, total_contacts_for_callsign=None):
         """Create a single QSL card"""
@@ -609,36 +1024,34 @@ class QSLCardGenerator:
         # Add confirmation text if space available
         table_y = int(self.config['card']['height'] * self.config['table']['y_percent'])
         if table_y > 100:
-            confirm_y = max(50, table_y - 35)
+            # Get positioning from config
+            pos_config = self.config.get('confirmation_text', {}).get('position', {})
+            x_offset = pos_config.get('x_offset', 10)
+            y_offset = pos_config.get('y_offset', -40)
+            min_y = pos_config.get('min_y', 50)
+            
+            confirm_y = max(min_y, table_y + y_offset)
+            text_x = self.config['table']['x'] + x_offset
+            
+            # Create confirmation text
             contact_count = len(contacts_for_card)
             total_qsos = total_contacts_for_callsign or contact_count
             confirm_text = f"QSL - Confirming {total_qsos} QSO{'s' if total_qsos > 1 else ''} with {callsign.upper()}"
             if total_cards > 1:
                 confirm_text += f" (Card {card_number} of {total_cards})"
             
-            # Debug: Print font info
-            #print(f"DEBUG: Using font for confirmation text: {self.fonts['large']}")
-            #print(f"DEBUG: Font size configured: {self.config['fonts']['sizes']['large']}")
-            #print(f"DEBUG: Available fonts: {list(self.fonts.keys())}")
-            #print(f"DEBUG: All configured font sizes: {self.config['fonts']['sizes']}")
-            
-            # Use xlarge font if available, otherwise large, or create a temporary large font
-            #confirmation_font = self.fonts['bold']
-            #print(f"DEBUG: Actually using font: {confirmation_font}")
-
             # Text background
-            bbox = draw.textbbox((0, 0), confirm_text, font=self.fonts['large'])
+            bbox = draw.textbbox((0, 0), confirm_text, font=self.get_font_for_section('confirmation_text'))
             text_width = bbox[2] - bbox[0]
-            text_x = (self.config['table']['x'] + 10)
             
             # Get text color from config
             text_color = self.config.get('confirmation_text', {}).get('text_color', 'black')
-
+            
             if self.config.get('confirmation_text', {}).get('show_border', False):
-                draw.rectangle([text_x - 10, confirm_y - 5, text_x + text_width + 10, 
-                                confirm_y + bbox[3] - bbox[1] + 5], 
-                                fill='white', outline='black', width=1)
-            draw.text((text_x, confirm_y), confirm_text, fill=text_color, font=self.fonts['bold'])
+                draw.rectangle([text_x - 10, confirm_y - 5, text_x + text_width + 10,
+                            confirm_y + bbox[3] - bbox[1] + 5],
+                            fill='white', outline='black', width=1)
+            draw.text((text_x, confirm_y), confirm_text, fill=text_color, font=self.get_font_for_section('confirmation_text'))
         
         self.draw_contact_table(draw, contacts_for_card)
         self.draw_additional_info_section(draw, contacts_for_card)
@@ -702,7 +1115,7 @@ class QSLCardGenerator:
 
 def main():
     parser = argparse.ArgumentParser(description='Generate QSL cards from ham radio contact CSV')
-    parser.add_argument('csv_file', help='Path to CSV file containing contacts')
+    parser.add_argument('csv_file', nargs='?', help='Path to CSV file containing contacts')
     parser.add_argument('template_image', nargs='?', help='Path to template image (optional)')
     parser.add_argument('-c', '--config', default='qsl_config.json', 
                        help='Configuration file (default: qsl_config.json)')
@@ -716,6 +1129,14 @@ def main():
                        version=f'QSL Card Generator {__version__} by {__author__}')
     parser.add_argument('--info', action='store_true', 
                        help='Show author and version information')
+    
+    # Configuration management options
+    parser.add_argument('--update-config', action='store_true',
+                       help='Update existing config file with missing default values')
+    parser.add_argument('--create-default-config', action='store_true',
+                       help='Create a new default configuration file')
+    parser.add_argument('--reset-config', action='store_true',
+                       help='Backup current config and create new default configuration')
     
     # Additional configuration options
     parser.add_argument('--max-contacts', type=int, 
@@ -742,8 +1163,31 @@ def main():
         print(f"License: {__license__}")
         return
     
+    # Handle configuration management operations
+    if args.update_config or args.create_default_config or args.reset_config:
+        # Create a minimal generator instance just for config operations
+        generator = QSLCardGenerator.__new__(QSLCardGenerator)
+        generator.config = {}  # Initialize empty config
+        
+        if args.update_config:
+            generator.update_config_with_defaults(args.config)
+            return
+        
+        if args.create_default_config:
+            generator.create_default_config_file(args.config)
+            return
+            
+        if args.reset_config:
+            generator.reset_config_with_backup(args.config)
+            return
+    
+    # Require CSV file for normal operations
+    if not args.csv_file:
+        parser.error("CSV file is required for QSL card generation")
+    
     generator = QSLCardGenerator(args.csv_file, args.template_image, args.config)
     
+    # Rest of the existing main() function logic continues unchanged...
     # Use config defaults if no command line args specified
     if not args.output_dir:
         args.output_dir = generator.config.get('output', {}).get('default_directory', 'qsl_cards')

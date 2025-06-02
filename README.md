@@ -35,6 +35,78 @@ pip install Pillow
 4. Prepare your contacts CSV file
 
 ## Quick Start
+## Installation
+
+### Quick Install (All Platforms)
+```bash
+# Clone the repository
+git clone https://github.com/vazquezrodjoel/ham-qsl-generator.git
+cd qsl-card-generator
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run with sample data
+python qsl_generator.py sample_contacts.csv
+```
+
+### Platform-Specific Installation
+
+#### Windows
+```powershell
+# Install Python from python.org or Microsoft Store
+# Open Command Prompt or PowerShell as Administrator
+
+# Install dependencies
+pip install Pillow
+
+# Optional: Install fonts if needed
+# Download Arial fonts to C:\Windows\Fonts\
+```
+
+#### macOS
+```bash
+# Install Python via Homebrew
+brew install python3
+
+# Install dependencies
+pip3 install Pillow
+
+# Optional: Install Microsoft fonts
+brew install --cask font-microsoft-office
+```
+
+#### Linux (Ubuntu/Debian)
+```bash
+# Install Python and pip
+sudo apt update
+sudo apt install python3 python3-pip python3-venv
+
+# Install system dependencies
+sudo apt install python3-tk fonts-liberation
+
+# Install Python dependencies
+pip3 install Pillow
+
+# Optional: Install Microsoft fonts
+sudo apt install ttf-mscorefonts-installer
+```
+
+#### Linux (CentOS/RHEL/Fedora)
+```bash
+# CentOS/RHEL
+sudo yum install python3 python3-pip
+# Fedora
+sudo dnf install python3 python3-pip
+
+# Install dependencies
+pip3 install Pillow
+
+# Install fonts
+sudo yum install liberation-fonts
+# or
+sudo dnf install liberation-fonts
+```
 
 ### Basic Usage
 
@@ -225,10 +297,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 Email: joelvazquez@we0dx.us
 
 ## Acknowledgments
-
-- Amateur radio community for feedback and testing
 - Python Pillow library for image processing capabilities
-- POTA (Parks on the Air) program for additional logging features
+- POTA (Parks on the Air) program.
 
 ---
 
