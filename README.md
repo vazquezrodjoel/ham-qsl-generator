@@ -1,6 +1,6 @@
 # Ham Radio QSL Card Generator
 
-**Version:** 1.3.0  
+**Version:** 1.4.0  
 **Author:** Joel Vazquez, WE0DX  
 **License:** MIT
 
@@ -17,6 +17,7 @@ A Python script that reads ham radio contacts from a CSV file and generates prof
 - **Configuration Management**: JSON-based configuration with easy management commands
 - **Font Customization**: Configurable fonts for different sections
 - **Output Control**: Customizable output directory and image quality
+- **Verify for Updates**: Will check for available updates from Github repo
 
 ## Requirements
 
@@ -133,6 +134,20 @@ python qsl_generator.py --update-config
 # Reset configuration (creates backup)
 python qsl_generator.py --reset-config
 ```
+### Update Management
+
+```bash
+# Check for updates from GitHub repository
+python qsl_generator.py --check-updates
+```
+```bash
+# Update script from GitHub (interactive)
+python qsl_generator.py --update-script
+```
+```bash
+# Disable automatic update checking for this run
+python qsl_generator.py --disable-update-check
+```          
 
 ## CSV Format
 

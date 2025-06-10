@@ -32,43 +32,43 @@
     "show_default_message": true,
     "default_message": "Thanks for the contact(s)!",
     "default_messages": [
-        "Thanks for the contact(s)!",
-        "73 and thanks for the QSO!",
-        "Hope you have some great contacts today!",
-        "Happy to work you!",
-        "Thanks for the chat!",
-        "Hope to catch you again on the other bands!",
-        "Enjoyed our QSO!",
-        "Thanks for stopping by!",
-        "Always a pleasure!",
-        "See you on the bands!"
+      "Thanks for the contact(s)!",
+      "73 and thanks for the QSO!",
+      "Hope you have some great contacts today!",
+      "Happy to work you!",
+      "Thanks for the chat!",
+      "Hope to catch you again on the other bands!",
+      "Enjoyed our QSO!",
+      "Thanks for stopping by!",
+      "Always a pleasure!",
+      "See you on the bands!"
     ],
     "comment_max_width": 1200,
     "columns": {
-        "date_band_offset": 10,
-        "comment_offset": 250,
-        "pota_offset": 800
+      "date_band_offset": 10,
+      "comment_offset": 250,
+      "pota_offset": 800
+    },
+    "fonts": {
+      "header": "bold",
+      "date_band": "large",
+      "comment": "large",
+      "pota": "large",
+      "default_message": "large"
     },
     "show_row_lines": true,
     "show_column_lines": true,
     "row_line_spacing": 0,
     "base_row_height": 22,
-    "line_width": 1,
-    "fonts": {
-        "header": "bold",
-        "date_band": "large",
-        "comment": "large",
-        "pota": "large",
-        "default_message": "large"
-    }
+    "line_width": 1
   },
   "confirmation_text": {
     "show_border": false,
     "text_color": "black",
     "position": {
-        "x_offset": 10,
-        "y_offset": -45,
-        "min_y": 50
+      "x_offset": 10,
+      "y_offset": -45,
+      "min_y": 50
     }
   },
   "fonts": {
@@ -84,7 +84,7 @@
     },
     "section_sizes": {
       "confirmation_text": "xlarge",
-      "table_header": "bold", 
+      "table_header": "bold",
       "table_data": "large",
       "additional_info_header": "bold",
       "additional_info_data": "medium"
@@ -103,8 +103,26 @@
     "grid_lines": "#000000"
   },
   "columns": {
-    "widths_percent": [0.16,0.09,0.13,0.13,0.07,0.07,0.09,0.31],
-    "headers": ["Date","UTC","Freq(MHz)","Mode/Sub","RST S","RST R","Band","Notes"]
+    "widths_percent": [
+      0.16,
+      0.09,
+      0.13,
+      0.13,
+      0.07,
+      0.07,
+      0.09,
+      0.31
+    ],
+    "headers": [
+      "Date",
+      "UTC",
+      "Freq(MHz)",
+      "Mode/Sub",
+      "RST S",
+      "RST R",
+      "Band",
+      "Notes"
+    ]
   },
   "modes": {
     "digital": [
@@ -199,10 +217,15 @@
       450.0,
       "70cm"
     ]
-  ]
+  ],
+  "update": {
+    "github_repo": "vazquezrodjoel/ham-qsl-generator",
+    "check_on_startup": true,
+    "auto_check_interval_days": 7,
+    "last_check_date": null,
+    "current_version": "1.3.0",
+    "update_script": true,
+    "update_config": true,
+    "backup_before_update": true
+  }
 }
-
-
-
-
-

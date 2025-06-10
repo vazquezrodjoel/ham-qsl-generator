@@ -2,3 +2,5 @@
 # Install with: pip install -r requirements.txt
 
 Pillow>=10.0.0
+requests>=2.25.0
+packaging>=21.0
