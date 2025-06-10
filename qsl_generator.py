@@ -34,6 +34,7 @@ python qsl_generator.py --reset-config
 python qsl_generator.py --update-config -c my_config.json
 
 Changelog:
+v1.4.0 - Added configurable option to verify updates from Github Repository
 v1.3.0 - Added configurable fonts per section from the configuration json file.
 v1.2.0 - Added configurable contact limits, improved Additional Info section
 v1.1.0 - Added confirmation text border control, output directory management
@@ -50,13 +51,18 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 import shutil
 from pathlib import Path
+import requests
+from packaging import version
+import urllib.request
+import tempfile
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 __author__ = "Author: Joel Vazquez, WE0DX"
 __email__ = "joelvazquez@we0dx.us"
 __license__ = "MIT"
 
 class QSLCardGenerator:
+    
     def update_config_with_defaults(self, config_file):
         """Update existing config file with any missing default values"""
         print(f"Updating {config_file} with missing default values...")
@@ -356,7 +362,17 @@ class QSLCardGenerator:
                 450.0,
                 "70cm"
                 ]
-            ]
+            ],
+            "update": {
+                "github_repo": "vazquezrodjoel/ham-qsl-generator",  # Change to your repo
+                "check_on_startup": True,
+                "auto_check_interval_days": 7,
+                "last_check_date": None,
+                "current_version": "1.3.0",
+                "update_script": True,
+                "update_config": True,
+                "backup_before_update": True
+            }
         }
 
     def get_font_for_section(self, section_name):
@@ -446,33 +462,33 @@ class QSLCardGenerator:
         except KeyError:
             return None
 
-        def update_config_file(self, changes, config_file):
-            """Update config file with new values"""
-            try:
-                # Load current config or create new one
-                if os.path.exists(config_file):
-                    with open(config_file, 'r') as f:
-                        config = json.load(f)
-                else:
-                    config = {}
-                
-                # Apply changes using dot notation
-                for key, value in changes.items():
-                    keys = key.split('.')
-                    current = config
-                    for k in keys[:-1]:
-                        if k not in current:
-                            current[k] = {}
-                        current = current[k]
-                    current[keys[-1]] = value
-                
-                # Save updated config
-                with open(config_file, 'w') as f:
-                    json.dump(config, f, indent=2)
-                print(f"Configuration updated and saved to {config_file}")
-                
-            except Exception as e:
-                print(f"Error saving config: {e}")
+    def update_config_file(self, changes, config_file):
+        """Update config file with new values"""
+        try:
+            # Load current config or create new one
+            if os.path.exists(config_file):
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+            else:
+                config = {}
+            
+            # Apply changes using dot notation
+            for key, value in changes.items():
+                keys = key.split('.')
+                current = config
+                for k in keys[:-1]:
+                    if k not in current:
+                        current[k] = {}
+                    current = current[k]
+                current[keys[-1]] = value
+            
+            # Save updated config
+            with open(config_file, 'w') as f:
+                json.dump(config, f, indent=2)
+            print(f"Configuration updated and saved to {config_file}")
+            
+        except Exception as e:
+            print(f"Error saving config: {e}")
 
     def check_and_clear_output_dir(self, output_dir):
         """Check if output directory has content and ask user if they want to clear it"""
@@ -510,6 +526,256 @@ class QSLCardGenerator:
                 else:
                     print("Please enter 'y' for yes or 'n' for no.")
         return True
+    
+    def check_for_updates(self, force_check=False):
+        """Check GitHub repository for newer version"""
+        update_config = self.config.get('update', {})
+        
+        if not update_config.get('github_repo'):
+            print("No GitHub repository configured for updates")
+            return False
+        
+        # Check if we should skip automatic checking
+        if not force_check and not update_config.get('check_on_startup', True):
+            return False
+        
+        # Check interval (if not forced)
+        if not force_check:
+            last_check = update_config.get('last_check_date')
+            if last_check:
+                from datetime import datetime, timedelta
+                try:
+                    last_check_date = datetime.fromisoformat(last_check)
+                    interval_days = update_config.get('auto_check_interval_days', 7)
+                    if datetime.now() - last_check_date < timedelta(days=interval_days):
+                        return False
+                except ValueError:
+                    pass
+        
+        try:
+            print("Checking for updates..." if force_check else "Checking for updates (background)...")
+            
+            repo = update_config['github_repo']
+            api_url = f"https://api.github.com/repos/{repo}/releases/latest"
+            
+            # Make API request with timeout
+            response = requests.get(api_url, timeout=10)
+            response.raise_for_status()
+            
+            release_data = response.json()
+            latest_version = release_data['tag_name'].lstrip('v')
+            current_version = update_config.get('current_version', __version__)
+            
+            # Update last check date
+            self.update_last_check_date()
+            
+            if version.parse(latest_version) > version.parse(current_version):
+                print(f"\n🎉 New version available!")
+                print(f"Current version: {current_version}")
+                print(f"Latest version:  {latest_version}")
+                print(f"Release name:    {release_data.get('name', 'N/A')}")
+                print(f"Published:       {release_data.get('published_at', 'N/A')[:10]}")
+                
+                if release_data.get('body'):
+                    print(f"\nRelease notes:")
+                    # Truncate release notes if too long
+                    notes = release_data['body'][:500]
+                    if len(release_data['body']) > 500:
+                        notes += "... (truncated)"
+                    print(notes)
+                
+                if force_check:
+                    self.prompt_for_update(release_data)
+                else:
+                    print(f"\nRun with --check-updates to see update options")
+                
+                return True
+            else:
+                if force_check:
+                    print(f"You're running the latest version ({current_version})")
+                return False
+                
+        except requests.RequestException as e:
+            if force_check:
+                print(f"Error checking for updates: {e}")
+            return False
+        except Exception as e:
+            if force_check:
+                print(f"Unexpected error checking for updates: {e}")
+            return False
+
+    def update_last_check_date(self):
+        """Update the last check date in config"""
+        from datetime import datetime
+        
+        # Update in-memory config
+        if 'update' not in self.config:
+            self.config['update'] = {}
+        self.config['update']['last_check_date'] = datetime.now().isoformat()
+        
+        # Save to file if config file exists
+        if hasattr(self, 'config_file') and self.config_file and os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r') as f:
+                    file_config = json.load(f)
+                
+                if 'update' not in file_config:
+                    file_config['update'] = {}
+                file_config['update']['last_check_date'] = self.config['update']['last_check_date']
+                
+                with open(self.config_file, 'w') as f:
+                    json.dump(file_config, f, indent=2)
+            except Exception as e:
+                print(f"Warning: Could not update last check date: {e}")
+
+    def prompt_for_update(self, release_data):
+        """Prompt user for update options"""
+        print(f"\nUpdate options:")
+        print(f"1. Update script only")
+        print(f"2. Update script and config")
+        print(f"3. Download manually")
+        print(f"4. Skip this version")
+        print(f"5. Cancel")
+        
+        while True:
+            choice = input("\nEnter your choice (1-5): ").strip()
+            
+            if choice == '1':
+                self.update_script(release_data, update_config=False)
+                break
+            elif choice == '2':
+                self.update_script(release_data, update_config=True)
+                break
+            elif choice == '3':
+                print(f"\nDownload manually from:")
+                print(f"https://github.com/{self.config['update']['github_repo']}/releases/latest")
+                break
+            elif choice == '4':
+                print("Skipping this version...")
+                break
+            elif choice == '5':
+                print("Update cancelled")
+                break
+            else:
+                print("Please enter a number between 1 and 5")
+
+    def update_script(self, release_data, update_config=True):
+        """Download and update the script"""
+        update_config_obj = self.config.get('update', {})
+        
+        if not update_config_obj.get('update_script', True):
+            print("Script updates are disabled in configuration")
+            return False
+        
+        try:
+            # Create backup if configured
+            if update_config_obj.get('backup_before_update', True):
+                self.create_backup()
+            
+            # Find the script file in release assets
+            script_asset = None
+            config_asset = None
+            
+            for asset in release_data.get('assets', []):
+                if asset['name'].endswith('.py'):
+                    script_asset = asset
+                elif asset['name'].endswith('.json') and 'config' in asset['name'].lower():
+                    config_asset = asset
+            
+            if not script_asset:
+                print("No Python script found in release assets")
+                return False
+            
+            print(f"Downloading {script_asset['name']}...")
+            
+            # Download script
+            script_url = script_asset['browser_download_url']
+            current_script = __file__
+            
+            with tempfile.NamedTemporaryFile(mode='wb', delete=False) as tmp_file:
+                with urllib.request.urlopen(script_url) as response:
+                    shutil.copyfileobj(response, tmp_file)
+                temp_path = tmp_file.name
+            
+            # Replace current script
+            shutil.move(temp_path, current_script)
+            os.chmod(current_script, 0o755)
+            
+            print(f"✅ Script updated successfully!")
+            
+            # Update config if requested and available
+            if update_config and config_asset and update_config_obj.get('update_config', True):
+                print(f"Downloading {config_asset['name']}...")
+                
+                config_url = config_asset['browser_download_url']
+                config_file = getattr(self, 'config_file', 'qsl_config.json')
+                
+                # Create backup of current config
+                if os.path.exists(config_file):
+                    backup_config = f"{config_file}.backup"
+                    shutil.copy2(config_file, backup_config)
+                    print(f"Config backup created: {backup_config}")
+                
+                with tempfile.NamedTemporaryFile(mode='wb', delete=False) as tmp_file:
+                    with urllib.request.urlopen(config_url) as response:
+                        shutil.copyfileobj(response, tmp_file)
+                    temp_config_path = tmp_file.name
+                
+                shutil.move(temp_config_path, config_file)
+                print(f"✅ Configuration updated successfully!")
+            
+            # Update version in config
+            self.update_version_in_config(release_data['tag_name'].lstrip('v'))
+            
+            print(f"\n🎉 Update completed successfully!")
+            print(f"Please restart the script to use the new version.")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error during update: {e}")
+            return False
+
+    def create_backup(self):
+        """Create backup of current script and config"""
+        from datetime import datetime
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Backup script
+        current_script = __file__
+        backup_script = f"{current_script}.{timestamp}.backup"
+        shutil.copy2(current_script, backup_script)
+        print(f"Script backup created: {backup_script}")
+        
+        # Backup config if exists
+        config_file = getattr(self, 'config_file', 'qsl_config.json')
+        if os.path.exists(config_file):
+            backup_config = f"{config_file}.{timestamp}.backup"
+            shutil.copy2(config_file, backup_config)
+            print(f"Config backup created: {backup_config}")
+
+    def update_version_in_config(self, new_version):
+        """Update the current version in config file"""
+        config_file = getattr(self, 'config_file', 'qsl_config.json')
+        
+        if not os.path.exists(config_file):
+            return
+        
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+            
+            if 'update' not in config:
+                config['update'] = {}
+            
+            config['update']['current_version'] = new_version
+            
+            with open(config_file, 'w') as f:
+                json.dump(config, f, indent=2)
+                
+        except Exception as e:
+            print(f"Warning: Could not update version in config: {e}")
 
     def __init__(self, csv_file, template_image=None, config_file=None):
         self.csv_file = csv_file
@@ -518,6 +784,10 @@ class QSLCardGenerator:
         
         # Load configuration FIRST
         self.config = self.load_config(config_file)
+        # Check for updates on startup (if enabled)
+        if self.config.get('update', {}).get('check_on_startup', True):
+            self.check_for_updates(force_check=False)
+
         # THEN resolve template image (command line takes precedence over config)
         if template_image:
             self.template_image = template_image
@@ -1129,16 +1399,12 @@ def main():
                        version=f'QSL Card Generator {__version__} by {__author__}')
     parser.add_argument('--info', action='store_true', 
                        help='Show author and version information')
-    
-    # Configuration management options
     parser.add_argument('--update-config', action='store_true',
                        help='Update existing config file with missing default values')
     parser.add_argument('--create-default-config', action='store_true',
                        help='Create a new default configuration file')
     parser.add_argument('--reset-config', action='store_true',
                        help='Backup current config and create new default configuration')
-    
-    # Additional configuration options
     parser.add_argument('--max-contacts', type=int, 
                        help='Maximum contacts per card (default: from config)')
     parser.add_argument('--font-primary', 
@@ -1153,6 +1419,12 @@ def main():
                        help='Output image quality 1-100 (default: from config)')
     parser.add_argument('--auto-delete', action='store_true', 
                        help='Automatically delete output directory contents without asking')
+    parser.add_argument('--check-updates', action='store_true',
+                   help='Check for updates from GitHub repository')
+    parser.add_argument('--update-script', action='store_true',
+                    help='Update script from GitHub (interactive)')
+    parser.add_argument('--disable-update-check', action='store_true',
+                    help='Disable automatic update checking for this run')
     
     args = parser.parse_args()
     
